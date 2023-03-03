@@ -1,3 +1,4 @@
+import time
 import cv2 as cv
 import os
 import numpy as np
@@ -63,8 +64,11 @@ ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(
 print("calibrated")
 
 print("duming the data into one files using numpy ")
+
+#get timestamp for file name
+ts = time.time()
 np.savez(
-    f"{calib_data_path}/MultiMatrix",
+    f"{calib_data_path}/MultiMatrix-{ts}",
     camMatrix=mtx,
     distCoef=dist,
     rVector=rvecs,
@@ -75,11 +79,40 @@ print("-------------------------------------------")
 
 print("loading data stored using numpy savez function\n \n \n")
 
-data = np.load(f"{calib_data_path}/MultiMatrix.npz")
+data = np.load(f"{calib_data_path}/MultiMatrix-{ts}.npz")
 
 camMatrix = data["camMatrix"]
-distCof = data["distCoef"]
+distCoef = data["distCoef"]
 rVector = data["rVector"]
 tVector = data["tVector"]
 
+#compare the current multimatrix to previous ones to determine the % difference
+error_array = []
+matrix_files = os.listdir(calib_data_path)
+for index, matrix_file in enumerate(matrix_files):
+    if matrix_file != f"MultiMatrix-{ts}.npz":
+        matrix_path = os.path.join(calib_data_path, matrix_file)
+        
+        matrix = np.load(matrix_path)
+        
+        cam_error = np.sum(np.subtract(camMatrix, matrix["camMatrix"])) / np.sum(camMatrix)
+        distCoef_error = np.sum(np.subtract(distCoef, matrix["distCoef"])) / np.sum(distCoef)
+        # rVector_error = np.sum(np.subtract(rVector, matrix["rVector"])) / np.sum(rVector) 
+        # tVector_error = np.sum(np.subtract(tVector, matrix["tVector"])) / np.sum(tVector) 
+        
+        if index > 0 and cam_error == 0 and distCoef_error == 0:
+            print("duplicate matrix")
+            os.remove(matrix_path)
+            print(f"{matrix_path} deleted")
+            continue
+        
+        matrix_error = [cam_error, distCoef_error]
+        
+        error_array.append(matrix_error)
+    
+
+
 print("loaded calibration data successfully")
+
+print("printing the error array")
+print(error_array)
